@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADSU Mubi Lecture Timetable Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background: #f4f7fa;
+        }
+        .container {
+            max-width: 1400px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .upload-area {
+            background: #e9f0f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .file-label {
+            background: #2c3e66;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        input[type="file"] { display: none; }
+        button {
+            background: #27ae60;
+            border: none;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-primary { background: #3498db; }
+        .btn-success { background: #27ae60; }
+        .btn-warning { background: #e67e22; }
+        .btn-danger { background: #e74c3c; }
+        
+        .status { margin: 15px 0; padding: 8px; border-radius: 6px; background: #fff3cd; color: #856404; display: none; }
+        .status-info { background: #d1ecf1; color: #0c5460; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+        
+        .timetable { overflow-x: auto; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #ccc; padding: 10px; vertical-align: top; background: white; }
+        th { background: #2c3e66; color: white; }
+        td { min-height: 60px; }
+        .stats {
+            margin-top: 20px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            background: #eef2f7;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .stat-card {
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            min-width: 150px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e66;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        
+        .legend {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .legend-item {
+            display: inline-block;
+            margin-right: 20px;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        
+        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📚 ADSU Mubi Lecture Timetable Scheduler</h1>
+        <div>
+            Welcome, <?= htmlspecialchars($username) ?> | 
+            <a href="logout.php" class="btn-danger" style="padding:5px 10px; color:white; text-decoration:none; border-radius:4px;">Logout</a>
+        </div>
+    </div>
+    
+    <div class="upload-area">
+        <label class="file-label">
+            📂 Choose DOCX file
+            <input type="file" id="docxFile" accept=".docx">
+        </label>
+        <button id="generateExamBtn" class="btn-success">📝 Generate Exam Timetable</button>
+        <button id="generateLectureBtn" class="btn-primary">🏫 Generate Lecture Timetable</button>
+        <button id="exportExcelBtn" class="btn-warning" disabled>📎 Export to Excel</button>
+        <button id="resetBtn" class="btn-danger">🔄 Reset</button>
+    </div>
+    
+    <div id="status" class="status"></div>
+    
+    <div class="timetable">
+        <table id="timetableTable">
+            <thead>
+                <tr>
+                    <th style="width:12%;">Day</th>
+                    <th style="width:29.3%;">Slot 1 (8:00-10:00)</th>
+                    <th style="width:29.3%;">Slot 2 (10:15-12:15)</th>
+                    <th style="width:29.3%;">Slot 3 (12:30-14:30)</th>
+                </tr>
+            </thead>
+            <tbody id="timetableBody">
+                <tr><td colspan="4" style="text-align:center; padding:40px;">No timetable generated yet. Please upload a course file.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="statsPanel" class="stats"></div>
+    
+    <div class="legend">
+        <strong>📌 Legend:</strong>
+        <span class="legend-item">🏠 <strong>Venue</strong></span>
+        <span class="legend-item">👨‍🏫 <strong>Lecturer</strong></span>
+        <span class="legend-item">🎓 <strong>Level</strong></span>
+        <span class="legend-item">👥 <strong>Students</strong></span>
+    </div>
+</div>
+<div class="footer">© ADSU Mubi 2026 - Lecture Timetable Management System</div>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script>
+    const fileInput = document.getElementById('docxFile');
+    const generateExamBtn = document.getElementById('generateExamBtn');
+    const generateLectureBtn = document.getElementById('generateLectureBtn');
+    const exportBtn = document.getElementById('exportExcelBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusDiv = document.getElementById('status');
+    const timetableBody = document.getElementById('timetableBody');
+    const statsPanel = document.getElementById('statsPanel');
+    let currentTimetableData = null;
+    let currentScheduleType = '';
+
+    function showStatus(msg, type = 'info') {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = msg;
+        statusDiv.className = 'status status-' + type;
+        if (type !== 'error') {
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+    }
+
+    function hideStatus() {
+        statusDiv.style.display = 'none';
+    }
+
+    function renderTimetable(timetableRows) {
+        if (!timetableRows || timetableRows.length === 0) {
+            timetableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px;">No data available</td></tr>';
+            return;
+        }
+        
+        let html = '';
+        for (let row of timetableRows) {
+            html += `<tr>
+                        <td><strong>${escapeHtml(row.day)}</strong></td>
+                        <td>${formatSlotContent(row.slot1)}</td>
+                        <td>${formatSlotContent(row.slot2)}</td>
+                        <td>${formatSlotContent(row.slot3)}</td>
+                     </tr>`;
+        }
+        timetableBody.innerHTML = html;
+    }
+
+    function formatSlotContent(content) {
+        if (!content || content === '—') return '—';
+        
+        // Parse content if it's a string with multiple lines
+        if (typeof content === 'string') {
+            const lines = content.split('\n');
+            let html = '';
+            
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                
+                // Check for venue
+                if (line.includes('Venue:')) {
+                    html += `<div>🏠 ${escapeHtml(line)}</div>`;
+                }
+                // Check for lecturer
+                else if (line.includes('Lecturer:')) {
+                    html += `<div>👨‍🏫 ${escapeHtml(line)}</div>`;
+                }
+                // Check for students
+                else if (line.includes('Students:')) {
+                    html += `<div>👥 ${escapeHtml(line)}</div>`;
+                }
+                // Course code and title
+                else if (line.includes(' - ')) {
+                    const parts = line.split(' - ');
+                    if (parts.length === 2) {
+                        html += `<div><strong>${escapeHtml(parts[0])}</strong> - ${escapeHtml(parts[1])}</div>`;
+                    } else {
+                        html += `<div>${escapeHtml(line)}</div>`;
+                    }
+                }
+                // Level
+                else if (line.includes('(') && line.includes(')')) {
+                    html += `<div>🎓 ${escapeHtml(line)}</div>`;
+                }
+                else {
+                    html += `<div>${escapeHtml(line)}</div>`;
+                }
+            }
+            return html;
+        }
+        return escapeHtml(content);
+    }
+
+    function renderStats(stats, validation) {
+        if (!stats) return;
+        statsPanel.style.display = 'flex';
+        
+        let conflictBadge = '';
+        const totalConflicts = validation.total_conflicts || 0;
+        if (totalConflicts === 0) {
+            conflictBadge = '<span class="badge badge-success">✓ No conflicts</span>';
+        } else if (totalConflicts < 3) {
+            conflictBadge = `<span class="badge badge-warning">⚠️ ${totalConflicts} conflicts</span>`;
+        } else {
+            conflictBadge = `<span class="badge badge-danger">❌ ${totalConflicts} conflicts</span>`;
+        }
+        
+        statsPanel.innerHTML = `
+            <div class="stat-card">
+                <div class="value">${stats.total_courses}</div>
+                <div>📚 Courses scheduled</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">${stats.slots_used} / ${stats.total_slots}</div>
+                <div>⏱️ Slots used</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">${stats.utilisation_percent}%</div>
+                <div>📈 Utilisation</div>
+            </div>
+            <div class="stat-card">
+                <div class="value">${stats.days} days</div>
+                <div>📅 Schedule duration</div>
+            </div>
+            <div class="stat-card">
+                <div>${conflictBadge}</div>
+                <div>🔍 Conflicts</div>
+                <div style="font-size:11px; color:#666; margin-top:5px;">
+                    Lecturer: ${validation.lecturer_conflicts || 0} | 
+                    Venue: ${validation.venue_conflicts || 0} | 
+                    Level: ${validation.level_conflicts || 0}
+                </div>
+            </div>
+        `;
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function clearTimetable() {
+        timetableBody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px;">No timetable generated yet. Please upload a course file.</td></tr>';
+        statsPanel.style.display = 'none';
+        currentTimetableData = null;
+        currentScheduleType = '';
+        exportBtn.disabled = true;
+        hideStatus();
+    }
+
+    async function generateTimetable(endpoint) {
+        const file = fileInput.files[0];
+        if (!file) {
+            showStatus('Please select a .docx file first.', 'error');
+            return;
+        }
+        
+        if (file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+            showStatus('Invalid file type. Please upload a .docx file.', 'error');
+            return;
+        }
+
+        showStatus('Processing... Please wait.', 'info');
+        generateExamBtn.disabled = true;
+        generateLectureBtn.disabled = true;
+        exportBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('docx_file', file);
+
+        try {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                showStatus('Error: ' + data.message, 'error');
+                generateExamBtn.disabled = false;
+                generateLectureBtn.disabled = false;
+                return;
+            }
+            
+            renderTimetable(data.timetable);
+            renderStats(data.stats, data.validation);
+            currentTimetableData = data.timetable;
+            currentScheduleType = endpoint === 'schedule.php' ? 'exam' : 'lecture';
+            exportBtn.disabled = false;
+            
+            const typeName = endpoint === 'schedule.php' ? 'Examination' : 'Lecture';
+            showStatus(`${typeName} timetable generated successfully! (${data.stats.total_courses} courses scheduled)`, 'success');
+            
+        } catch (err) {
+            showStatus('Network error: ' + err.message, 'error');
+        } finally {
+            generateExamBtn.disabled = false;
+            generateLectureBtn.disabled = false;
+        }
+    }
+
+    generateExamBtn.addEventListener('click', () => {
+        generateTimetable('schedule.php');
+    });
+
+    generateLectureBtn.addEventListener('click', () => {
+        generateTimetable('schedule_lecture.php');
+    });
+
+    resetBtn.addEventListener('click', () => {
+        fileInput.value = '';
+        clearTimetable();
+        showStatus('Reset complete', 'info');
+    });
+
+    exportBtn.addEventListener('click', () => {
+        if (!currentTimetableData) {
+            showStatus('No timetable data to export', 'error');
+            return;
+        }
+        
+        const wsData = [['Day', '8:00-10:00', '10:15-12:15', '12:30-14:30']];
+        for (let row of currentTimetableData) {
+            wsData.push([row.day, row.slot1, row.slot2, row.slot3]);
+        }
+        
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Timetable');
+        const filename = currentScheduleType === 'exam' ? 'examination_timetable.xlsx' : 'lecture_timetable.xlsx';
+        XLSX.writeFile(wb, filename);
+        showStatus(`Export successful: ${filename}`, 'success');
+    });
+
+    // File input change handler
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            showStatus(`File selected: ${fileInput.files[0].name}`, 'info');
+        }
+    });
+
+    // Keyboard shortcut: Ctrl+Enter to generate lecture timetable
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            generateLectureBtn.click();
+        }
+    });
+</script>
+</body>
+</html>
